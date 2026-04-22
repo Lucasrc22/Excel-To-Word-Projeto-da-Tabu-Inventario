@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+{% load static %}
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <title>Upload Inventário</title>
+    <link rel="stylesheet" href="{% static 'bens/styles.css' %}">
+</head>
+<body>
+
+<div class="container">
+    <h1>Importar Inventário</h1>
+    <p class="subtitle">Processe seus ativos com facilidade. Carregue o Excel e as imagens para gerar o documento automaticamente.</p>
+
+    <form method="post" enctype="multipart/form-data" class="form-upload">
+        {% csrf_token %}
+
+        <div class="field">
+            <label>Arquivo Excel</label>
+            <input type="file" name="excel" accept=".xlsx" required>
+        </div>
+
+        <div class="field">
+            <label>Imagens (JPEG)</label>
+            <input type="file" name="imagens" accept=".jpg,.jpeg" multiple required>
+        </div>
+
+        <button type="submit">Processar</button>
+    </form>
+
+    {% if messages %}
+        <div class="messages">
+            {% for message in messages %}
+                <p>{{ message }}</p>
+            {% endfor %}
+        </div>
+    {% endif %}
+
+    {% if download_file %}
+        <div class="download-section">
+            <h2>Arquivo Gerado com Sucesso!</h2>
+            <p>Seu inventário foi processado. Clique abaixo para baixar:</p>
+            <a href="{% url 'download_docx' %}?file={{ download_file }}" class="btn-download">📥 Baixar Inventário (DOCX)</a>
+        </div>
+    {% endif %}
+
+    {% if available_documents %}
+        <div class="available-documents-section">
+            <h2>Histórico de Documentos Gerados</h2>
+            <p>Clique em qualquer documento abaixo para baixar:</p>
+            <div class="documents-list">
+                {% for doc in available_documents %}
+                    <div class="document-item {% if doc.filename == download_file %}highlight{% endif %}">
+                        <div class="document-info">
+                            <p class="document-name">{{ doc.filename }}</p>
+                            <p class="document-meta">{{ doc.date }} • {{ doc.size }}</p>
+                        </div>
+                        <a href="{% url 'download_docx' %}?file={{ doc.url_name }}" class="btn-download-small">Baixar</a>
+                    </div>
+                {% endfor %}
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+</body>
+</html>

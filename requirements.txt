@@ -1,0 +1,7 @@
+Django>=4.2,<5.0
+pandas>=2.0
+openpyxl>=3.1
+docxtpl>=0.16.7
+Pillow>=10.0
+celery>=5.3
+redis>=5.0
