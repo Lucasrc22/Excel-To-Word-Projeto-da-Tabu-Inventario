@@ -8,13 +8,12 @@ class Bem(models.Model):
     centro_custo = models.CharField(max_length=100, blank=True, null=True)
     descricao_cc = models.CharField(max_length=255, blank=True, null=True)
     responsavel  = models.CharField(max_length=255, blank=True, null=True)
-    descricao_bem = models.CharField(max_length=255, blank=True, null=True)  # era "tag" no services anterior
+    descricao_bem = models.CharField(max_length=255, blank=True, null=True)
     marca        = models.CharField(max_length=100, blank=True, null=True)
     modelo       = models.CharField(max_length=100, blank=True, null=True)
     narrativa    = models.TextField(blank=True, null=True)
     estado       = models.CharField(max_length=100, blank=True, null=True)
 
-    # Imagens — sufixo vazio = principal, A, B, C, D, E
     imagem_1 = models.ImageField(upload_to="uploads/imagens/", blank=True, null=True)
     imagem_2 = models.ImageField(upload_to="uploads/imagens/", blank=True, null=True)
     imagem_3 = models.ImageField(upload_to="uploads/imagens/", blank=True, null=True) 
