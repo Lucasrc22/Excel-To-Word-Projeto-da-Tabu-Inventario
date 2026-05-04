@@ -1,0 +1,52 @@
+# -------------------------
+# Python
+# -------------------------
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+.env/
+
+# -------------------------
+# Django
+# -------------------------
+*.log
+db.sqlite3
+db.sqlite3-journal
+
+# Arquivos de mídia (CRÍTICO no seu caso)
+media/
+media/uploads/
+media/outputs/
+
+# Static (se estiver coletado)
+staticfiles/
+
+# -------------------------
+# IDE / Editor
+# -------------------------
+.vscode/
+.idea/
+
+# -------------------------
+# OS
+# -------------------------
+.DS_Store
+Thumbs.db
+
+# -------------------------
+# Docker
+# -------------------------
+*.env
+.env.*
+docker-compose.override.yml
+
+# -------------------------
+# Misc
+# -------------------------
+*.swp
+*.bak
+*.tmp
