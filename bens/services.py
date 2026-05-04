@@ -20,10 +20,6 @@ from .models import Bem
 # Constantes
 # ---------------------------------------------------------------------------
 
-# Mapeamento sufixo → campo do model
-#   sem sufixo = imagem principal  (ex: "1234"  → imagem_1)
-#   "A"         = segunda imagem   (ex: "1234A" → imagem_2)
-#   "B"–"E"     = demais imagens   (ex: "1234B" → imagem_3 ... "1234E" → imagem_6)
 FIELD_MAP: Dict[str, str] = {
     "":  "imagem_1",
     "A": "imagem_2",
@@ -56,8 +52,8 @@ REQUIRED_COLUMNS: List[str] = [
     "Estado Fisico",
 ]
 
-IMAGE_WIDTH_MM: int = 60
-IMAGE_HEIGHT_MM: int = 60
+IMAGE_WIDTH_MM: int = 80
+IMAGE_HEIGHT_MM: int = 80
 
 
 
@@ -77,11 +73,7 @@ def _set_cell_background(cell, hex_color: str) -> None:
 
 
 def _add_details_table(doc: Document, bem: "Bem") -> None:
-    """
-    Insere tabela de 2 colunas com os atributos do bem.
-    Coluna esquerda: rótulo em negrito com fundo cinza-azulado.
-    Coluna direita: valor.
-    """
+
     data: List[Tuple[str, str]] = [
         ("Número do Bem",   str(bem.numero_bem or "")),
         ("Área",            str(bem.area or "")),
@@ -89,7 +81,7 @@ def _add_details_table(doc: Document, bem: "Bem") -> None:
         ("Centro de Custo", str(bem.centro_custo or "")),
         ("Descrição CC",    str(bem.descricao_cc or "")),
         ("Responsável",     str(bem.responsavel or "")),
-        ("Descrição/TAG",   str(bem.descricao_tag or "")),
+        ("Descrição/TAG",   str(bem.descricao_bem or "")),
         ("Marca",           str(bem.marca or "")),
         ("Modelo",          str(bem.modelo or "")),
         ("Narrativa",       str(bem.narrativa or "")),
@@ -113,16 +105,8 @@ def _add_details_table(doc: Document, bem: "Bem") -> None:
         row.cells[0].width = Mm(55)
         row.cells[1].width = Mm(105)
 
-    doc.add_paragraph()
-
-
 def _add_images_section(doc: Document, bem: "Bem") -> None:
-    """
-    Itera sobre todos os sufixos suportados (FIELD_MAP) e insere
-    no documento cada imagem associada ao bem, com validação prévia.
-
-    Sufixos sem arquivo associado são silenciosamente ignorados.
-    """
+ 
     from PIL import Image as PILImage
 
     imagens_presentes: List[Tuple[str, str]] = [
@@ -167,7 +151,6 @@ def _add_images_section(doc: Document, bem: "Bem") -> None:
                 f"⚠ {label}: erro ao processar — {type(exc).__name__}: {exc}"
             )
 
-    doc.add_paragraph()
 
 
 # ---------------------------------------------------------------------------
@@ -175,21 +158,7 @@ def _add_images_section(doc: Document, bem: "Bem") -> None:
 # ---------------------------------------------------------------------------
 
 def salvar_imagens(files: List[IO]) -> Dict[str, str]:
-    """
-    Recebe arquivos de imagem do upload, converte para JPEG e salva
-    em 'uploads/imagens/' via Django storage.
 
-    Retorna dicionário { nome_sem_extensao: caminho_relativo }.
-
-    Exemplos de chave gerada:
-        "1234"  → imagem principal
-        "1234A" → sufixo A
-        "1234B" → sufixo B
-        ...
-        "1234E" → sufixo E
-
-    Arquivos com erro são ignorados individualmente.
-    """
     from PIL import Image
 
     paths: Dict[str, str] = {}
@@ -233,12 +202,7 @@ def importar_excel(
     excel_path: str,
     imagens_dict: Dict[str, str],
 ) -> Tuple[io.BytesIO, str]:
-    """
-    Lê Excel, persiste Bens no banco e associa imagens para todos
-    os sufixos suportados (sem sufixo, A, B, C, D, E).
 
-    Retorna (BytesIO, filename) do documento Word gerado.
-    """
     df = pd.read_excel(excel_path, header=0)
     df.columns = df.columns.str.strip()
 
@@ -255,7 +219,7 @@ def importar_excel(
                 "centro_custo": row["Centro custo"],
                 "descricao_cc": row["Descricao do CC"],
                 "responsavel":  row["Responsavel"],
-                "descricao_tag": row["Descricao/TAG"],
+                "descricao_bem": row["Descricao/TAG"],
                 "marca":        row["Marca"],
                 "modelo":       row["Modelo"],
                 "narrativa":    row["Narrativa"],
@@ -285,20 +249,7 @@ def _associar_imagens(
     numero: str,
     imagens_dict: Dict[str, str],
 ) -> None:
-    """
-    Para cada sufixo em FIELD_MAP, verifica se existe imagem no dicionário
-    e atribui ao campo correspondente do bem.
 
-    Chaves esperadas:
-        "1234"  → imagem_1   (sem sufixo)
-        "1234A" → imagem_2
-        "1234B" → imagem_3
-        "1234C" → imagem_4
-        "1234D" → imagem_5
-        "1234E" → imagem_6
-
-    ⚡ save(update_fields=...) atualiza apenas as colunas alteradas.
-    """
     campos_atualizados: List[str] = []
 
     for sufixo, campo in FIELD_MAP.items():
@@ -318,18 +269,7 @@ def _associar_imagens(
 # ---------------------------------------------------------------------------
 
 def gerar_docx_unificado() -> Tuple[io.BytesIO, str]:
-    """
-    Gera documento Word com todos os bens cadastrados, ordenados por número.
 
-    Para cada bem inclui:
-      - Cabeçalho com número do bem
-      - Tabela de atributos
-      - Bloco fotográfico (sufixos sem letra, A, B, C, D, E)
-
-    Persiste cópia em MEDIA_ROOT/outputs/ e retorna (BytesIO, filename).
-
-    ⚡ Query única ordenada — sem N+1.
-    """
     bens = Bem.objects.all().order_by("numero_bem")
 
     if not bens.exists():
@@ -350,8 +290,6 @@ def gerar_docx_unificado() -> Tuple[io.BytesIO, str]:
     if subtitle.runs:
         subtitle.runs[0].font.size = Pt(10)
         subtitle.runs[0].font.color.rgb = RGBColor(0x59, 0x59, 0x59)
-
-    doc.add_paragraph()
 
     bens_list = list(bens)
 
@@ -396,12 +334,7 @@ def gerar_docx_unificado() -> Tuple[io.BytesIO, str]:
 # ---------------------------------------------------------------------------
 
 def gerar_docx(bem: "Bem") -> str:
-    """
-    Gera documento Word individual via template docxtpl.
-    Mantido por compatibilidade — suporta apenas imagem_1 e imagem_2.
 
-    Para geração completa com todos os sufixos, use gerar_docx_unificado().
-    """
     template_path = "templates_docx/template.docx"
     doc = DocxTemplate(template_path)
 
@@ -425,6 +358,22 @@ def gerar_docx(bem: "Bem") -> str:
         InlineImage(doc, bem.imagem_2.path, width=Mm(IMAGE_WIDTH_MM), height=Mm(IMAGE_HEIGHT_MM))
         if bem.imagem_2 else ""
     )
+    context["imagem_3"] = (
+        InlineImage(doc, bem.imagem_3.path, width=Mm(IMAGE_WIDTH_MM), height=Mm(IMAGE_HEIGHT_MM))
+        if bem.imagem_3 else ""
+    )
+    context["imagem_4"] = (
+        InlineImage(doc, bem.imagem_4.path, width=Mm(IMAGE_WIDTH_MM), height=Mm(IMAGE_HEIGHT_MM))
+        if bem.imagem_4 else ""
+    )
+    context["imagem_5"] = (
+        InlineImage(doc, bem.imagem_5.path, width=Mm(IMAGE_WIDTH_MM), height=Mm(IMAGE_HEIGHT_MM))
+        if bem.imagem_5 else ""
+    )
+    context["imagem_6"] = (
+        InlineImage(doc, bem.imagem_6.path, width=Mm(IMAGE_WIDTH_MM), height=Mm(IMAGE_HEIGHT_MM))
+        if bem.imagem_6 else ""
+    )
 
     doc.render(context)
 
@@ -438,12 +387,7 @@ def gerar_docx(bem: "Bem") -> str:
 # ---------------------------------------------------------------------------
 
 def deletar_arquivos() -> None:
-    """
-    Remove todos os arquivos em MEDIA_ROOT/uploads/ após o processamento.
-    Documentos gerados em outputs/ são preservados.
-
-    Erros individuais de remoção são logados e não interrompem a limpeza.
-    """
+  
     upload_dir = os.path.join(settings.MEDIA_ROOT, "uploads")
     for root, _dirs, files in os.walk(upload_dir):
         for file in files:
@@ -458,12 +402,7 @@ def deletar_arquivos() -> None:
 # ---------------------------------------------------------------------------
 
 def listar_documentos_gerados() -> List[Dict[str, str]]:
-    """
-    Retorna lista de dicionários descrevendo os .docx gerados,
-    ordenados do mais recente para o mais antigo.
 
-    Cada item: { filename, size, date, url_name }
-    """
     output_dir = os.path.join(settings.MEDIA_ROOT, "outputs")
 
     if not os.path.exists(output_dir):

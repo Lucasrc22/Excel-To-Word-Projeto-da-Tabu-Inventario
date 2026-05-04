@@ -8,7 +8,7 @@ class Bem(models.Model):
     centro_custo = models.CharField(max_length=100, blank=True, null=True)
     descricao_cc = models.CharField(max_length=255, blank=True, null=True)
     responsavel  = models.CharField(max_length=255, blank=True, null=True)
-    descricao_tag = models.CharField(max_length=255, blank=True, null=True)  # era "tag" no services anterior
+    descricao_bem = models.CharField(max_length=255, blank=True, null=True)  # era "tag" no services anterior
     marca        = models.CharField(max_length=100, blank=True, null=True)
     modelo       = models.CharField(max_length=100, blank=True, null=True)
     narrativa    = models.TextField(blank=True, null=True)
@@ -17,10 +17,10 @@ class Bem(models.Model):
     # Imagens — sufixo vazio = principal, A, B, C, D, E
     imagem_1 = models.ImageField(upload_to="uploads/imagens/", blank=True, null=True)
     imagem_2 = models.ImageField(upload_to="uploads/imagens/", blank=True, null=True)
-    imagem_3 = models.ImageField(upload_to="uploads/imagens/", blank=True, null=True)  # 👈 novo (sufixo B)
-    imagem_4 = models.ImageField(upload_to="uploads/imagens/", blank=True, null=True)  # 👈 novo (sufixo C)
-    imagem_5 = models.ImageField(upload_to="uploads/imagens/", blank=True, null=True)  # 👈 novo (sufixo D)
-    imagem_6 = models.ImageField(upload_to="uploads/imagens/", blank=True, null=True)  # 👈 novo (sufixo E)
+    imagem_3 = models.ImageField(upload_to="uploads/imagens/", blank=True, null=True) 
+    imagem_4 = models.ImageField(upload_to="uploads/imagens/", blank=True, null=True) 
+    imagem_5 = models.ImageField(upload_to="uploads/imagens/", blank=True, null=True)  
+    imagem_6 = models.ImageField(upload_to="uploads/imagens/", blank=True, null=True)  
 
     criado_em    = models.DateTimeField(auto_now_add=True)
     atualizado_em = models.DateTimeField(auto_now=True)
