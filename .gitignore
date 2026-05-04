@@ -17,7 +17,7 @@ venv/
 db.sqlite3
 db.sqlite3-journal
 
-# Arquivos de mídia (CRÍTICO no seu caso)
+# Arquivos de mídia
 media/
 media/uploads/
 media/outputs/
