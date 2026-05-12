@@ -5,3 +5,4 @@ docxtpl>=0.16.7
 Pillow>=10.0
 celery>=5.3
 redis>=5.0
+whitenoise>=6.7

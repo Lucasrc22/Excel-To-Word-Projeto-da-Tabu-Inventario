@@ -52,9 +52,8 @@ REQUIRED_COLUMNS: List[str] = [
     "Estado Fisico",
 ]
 
-IMAGE_WIDTH_MM: int = 80
-IMAGE_HEIGHT_MM: int = 80
-
+IMAGE_WIDTH_MM: int = 60
+IMAGE_HEIGHT_MM: int = 45
 
 
 # ---------------------------------------------------------------------------
@@ -73,7 +72,7 @@ def _set_cell_background(cell, hex_color: str) -> None:
 
 
 def _add_details_table(doc: Document, bem: "Bem") -> None:
-
+    """Tabela de 2 colunas com atributos do bem."""
     data: List[Tuple[str, str]] = [
         ("Número do Bem",   str(bem.numero_bem or "")),
         ("Área",            str(bem.area or "")),
@@ -105,8 +104,14 @@ def _add_details_table(doc: Document, bem: "Bem") -> None:
         row.cells[0].width = Mm(55)
         row.cells[1].width = Mm(105)
 
+    doc.add_paragraph()
+
+
 def _add_images_section(doc: Document, bem: "Bem") -> None:
- 
+    """
+    Insere bloco fotográfico para todos os sufixos com imagem associada.
+    Valida existência e integridade antes de inserir.
+    """
     from PIL import Image as PILImage
 
     imagens_presentes: List[Tuple[str, str]] = [
@@ -139,11 +144,9 @@ def _add_images_section(doc: Document, bem: "Bem") -> None:
                 doc.add_paragraph(f"⚠ {label}: arquivo vazio.")
                 continue
 
-            # Valida integridade — verify() fecha o arquivo, reabrir é necessário
             with PILImage.open(image_path) as img:
                 img.verify()
 
-            #doc.add_paragraph(f"{label}:")
             doc.add_picture(image_path, width=Mm(IMAGE_WIDTH_MM), height=Mm(IMAGE_HEIGHT_MM))
 
         except Exception as exc:
@@ -151,6 +154,7 @@ def _add_images_section(doc: Document, bem: "Bem") -> None:
                 f"⚠ {label}: erro ao processar — {type(exc).__name__}: {exc}"
             )
 
+    doc.add_paragraph()
 
 
 # ---------------------------------------------------------------------------
@@ -158,7 +162,10 @@ def _add_images_section(doc: Document, bem: "Bem") -> None:
 # ---------------------------------------------------------------------------
 
 def salvar_imagens(files: List[IO]) -> Dict[str, str]:
-
+    """
+    Recebe arquivos de imagem, converte para JPEG e salva via Django storage.
+    Retorna { nome_sem_extensao: caminho_relativo }.
+    """
     from PIL import Image
 
     paths: Dict[str, str] = {}
@@ -202,34 +209,43 @@ def importar_excel(
     excel_path: str,
     imagens_dict: Dict[str, str],
 ) -> Tuple[io.BytesIO, str]:
-
+    """
+    Lê Excel, persiste Bens no banco e associa imagens para os sufixos
+    suportados. Gera documento apenas com os bens da importação atual.
+    """
     df = pd.read_excel(excel_path, header=0)
     df.columns = df.columns.str.strip()
 
     _validar_colunas(df)
 
+    # ⚡ Rastreia apenas os números da planilha atual — evita incluir
+    # bens de importações anteriores no documento gerado
+    numeros_importados: List[str] = []
+
     for _, row in df.iterrows():
         numero = str(row["Numero bem"]).strip()
+        numeros_importados.append(numero)
 
         bem, _ = Bem.objects.update_or_create(
             numero_bem=numero,
             defaults={
-                "area":         row["IMOBILIZADO POR AREA"],
-                "localizacao":  row["Localizacao"],
-                "centro_custo": row["Centro custo"],
-                "descricao_cc": row["Descricao do CC"],
-                "responsavel":  row["Responsavel"],
+                "area":          row["IMOBILIZADO POR AREA"],
+                "localizacao":   row["Localizacao"],
+                "centro_custo":  row["Centro custo"],
+                "descricao_cc":  row["Descricao do CC"],
+                "responsavel":   row["Responsavel"],
                 "descricao_bem": row["Descricao/TAG"],
-                "marca":        row["Marca"],
-                "modelo":       row["Modelo"],
-                "narrativa":    row["Narrativa"],
-                "estado":       row["Estado Fisico"],
+                "marca":         row["Marca"],
+                "modelo":        row["Modelo"],
+                "narrativa":     row["Narrativa"],
+                "estado":        row["Estado Fisico"],
             },
         )
 
         _associar_imagens(bem, numero, imagens_dict)
 
-    result = gerar_docx_unificado()
+    # Gera documento somente com os bens desta importação
+    result = gerar_docx_unificado(numeros_importados)
     deletar_arquivos()
     return result
 
@@ -249,7 +265,10 @@ def _associar_imagens(
     numero: str,
     imagens_dict: Dict[str, str],
 ) -> None:
-
+    """
+    Associa imagens ao bem para cada sufixo suportado.
+    ⚡ save(update_fields=...) atualiza apenas colunas alteradas.
+    """
     campos_atualizados: List[str] = []
 
     for sufixo, campo in FIELD_MAP.items():
@@ -268,12 +287,26 @@ def _associar_imagens(
 # Geração do documento Word unificado
 # ---------------------------------------------------------------------------
 
-def gerar_docx_unificado() -> Tuple[io.BytesIO, str]:
+def gerar_docx_unificado(
+    numeros: Optional[List[str]] = None,
+) -> Tuple[io.BytesIO, str]:
+    """
+    Gera documento Word com os bens da importação atual.
 
-    bens = Bem.objects.all().order_by("numero_bem")
+    Args:
+        numeros: lista de numero_bem da planilha importada.
+                 Se None, inclui todos os bens do banco (retrocompatível).
+
+    Retorna (BytesIO, filename).
+    ⚡ Filtra por numero_bem__in para não incluir bens de importações anteriores.
+    """
+    if numeros:
+        bens = Bem.objects.filter(numero_bem__in=numeros).order_by("numero_bem")
+    else:
+        bens = Bem.objects.all().order_by("numero_bem")
 
     if not bens.exists():
-        raise ValueError("Nenhum bem registrado para gerar documento.")
+        raise ValueError("Nenhum bem encontrado para gerar documento.")
 
     doc = Document()
 
@@ -291,22 +324,19 @@ def gerar_docx_unificado() -> Tuple[io.BytesIO, str]:
         subtitle.runs[0].font.size = Pt(10)
         subtitle.runs[0].font.color.rgb = RGBColor(0x59, 0x59, 0x59)
 
+    doc.add_paragraph()
+
     bens_list = list(bens)
 
     for idx, bem in enumerate(bens_list):
 
-        # Cabeçalho do bem
         heading = doc.add_heading(f"Bem  #{bem.numero_bem}", level=1)
         if heading.runs:
             heading.runs[0].font.color.rgb = RGBColor(0x1F, 0x49, 0x7D)
 
-        # Tabela de dados
         _add_details_table(doc, bem)
-
-        # Bloco de imagens — sufixos sem letra, A, B, C, D, E
         _add_images_section(doc, bem)
 
-        # Quebra de página entre bens (exceto o último)
         if idx < len(bens_list) - 1:
             doc.add_page_break()
 
@@ -315,7 +345,7 @@ def gerar_docx_unificado() -> Tuple[io.BytesIO, str]:
     doc.save(doc_bytes)
     doc_bytes.seek(0)
 
-    # Persiste cópia em disco
+    # Persiste cópia em disco com timestamp
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     output_filename = f"Inventario_Unificado_{timestamp}.docx"
     output_dir = os.path.join(settings.MEDIA_ROOT, "outputs")
@@ -334,46 +364,32 @@ def gerar_docx_unificado() -> Tuple[io.BytesIO, str]:
 # ---------------------------------------------------------------------------
 
 def gerar_docx(bem: "Bem") -> str:
-
+    """
+    Gera documento Word individual via template docxtpl.
+    Mantido por compatibilidade — use gerar_docx_unificado() para geração completa.
+    """
     template_path = "templates_docx/template.docx"
     doc = DocxTemplate(template_path)
 
     context: Dict = {
-        "numero_bem":   bem.numero_bem,
-        "descricao":    bem.descricao_cc,
-        "localizacao":  bem.localizacao,
-        "centro_custo": bem.centro_custo,
-        "responsavel":  bem.responsavel,
-        "marca":        bem.marca,
-        "modelo":       bem.modelo,
-        "narrativa":    bem.narrativa,
-        "estado":       bem.estado,
+        "numero_bem":    bem.numero_bem,
+        "descricao":     bem.descricao_cc,
+        "localizacao":   bem.localizacao,
+        "centro_custo":  bem.centro_custo,
+        "responsavel":   bem.responsavel,
+        "marca":         bem.marca,
+        "modelo":        bem.modelo,
+        "narrativa":     bem.narrativa,
+        "estado":        bem.estado,
     }
 
-    context["imagem_1"] = (
-        InlineImage(doc, bem.imagem_1.path, width=Mm(IMAGE_WIDTH_MM), height=Mm(IMAGE_HEIGHT_MM))
-        if bem.imagem_1 else ""
-    )
-    context["imagem_2"] = (
-        InlineImage(doc, bem.imagem_2.path, width=Mm(IMAGE_WIDTH_MM), height=Mm(IMAGE_HEIGHT_MM))
-        if bem.imagem_2 else ""
-    )
-    context["imagem_3"] = (
-        InlineImage(doc, bem.imagem_3.path, width=Mm(IMAGE_WIDTH_MM), height=Mm(IMAGE_HEIGHT_MM))
-        if bem.imagem_3 else ""
-    )
-    context["imagem_4"] = (
-        InlineImage(doc, bem.imagem_4.path, width=Mm(IMAGE_WIDTH_MM), height=Mm(IMAGE_HEIGHT_MM))
-        if bem.imagem_4 else ""
-    )
-    context["imagem_5"] = (
-        InlineImage(doc, bem.imagem_5.path, width=Mm(IMAGE_WIDTH_MM), height=Mm(IMAGE_HEIGHT_MM))
-        if bem.imagem_5 else ""
-    )
-    context["imagem_6"] = (
-        InlineImage(doc, bem.imagem_6.path, width=Mm(IMAGE_WIDTH_MM), height=Mm(IMAGE_HEIGHT_MM))
-        if bem.imagem_6 else ""
-    )
+    for sufixo, campo in FIELD_MAP.items():
+        key = f"imagem_{list(FIELD_MAP.keys()).index(sufixo) + 1}"
+        field_value = getattr(bem, campo, None)
+        context[key] = (
+            InlineImage(doc, field_value.path, width=Mm(IMAGE_WIDTH_MM), height=Mm(IMAGE_HEIGHT_MM))
+            if field_value else ""
+        )
 
     doc.render(context)
 
@@ -387,7 +403,7 @@ def gerar_docx(bem: "Bem") -> str:
 # ---------------------------------------------------------------------------
 
 def deletar_arquivos() -> None:
-  
+    """Remove todos os arquivos em MEDIA_ROOT/uploads/ após o processamento."""
     upload_dir = os.path.join(settings.MEDIA_ROOT, "uploads")
     for root, _dirs, files in os.walk(upload_dir):
         for file in files:
@@ -402,7 +418,10 @@ def deletar_arquivos() -> None:
 # ---------------------------------------------------------------------------
 
 def listar_documentos_gerados() -> List[Dict[str, str]]:
-
+    """
+    Retorna lista de .docx gerados em outputs/, do mais recente ao mais antigo.
+    Cada item: { filename, size, date, url_name }
+    """
     output_dir = os.path.join(settings.MEDIA_ROOT, "outputs")
 
     if not os.path.exists(output_dir):
