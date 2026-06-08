@@ -85,6 +85,11 @@ STATIC_ROOT = BASE_DIR / "staticfiles"
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
 
 # -------------------------------------------------------------------
+# UPLOAD LIMITS
+# -------------------------------------------------------------------
+DATA_UPLOAD_MAX_NUMBER_FILES = 500  # Django 4.1+ default is 100; aumentado para suportar uploads em lote
+
+# -------------------------------------------------------------------
 # MEDIA
 # -------------------------------------------------------------------
 MEDIA_URL = os.getenv("MEDIA_URL", "/media/")
